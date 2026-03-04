@@ -27,7 +27,17 @@ const AttendancePage = () => {
 
     const [now, setNow] = useState(new Date());
     useEffect(() => {
-        const timer = setInterval(() => setNow(new Date()), 60000);
+        let lastDate = new Date().toISOString().split('T')[0];
+        const timer = setInterval(() => {
+            const current = new Date();
+            const currentDate = current.toISOString().split('T')[0];
+            if (currentDate !== lastDate) {
+                // Kun o'zgardi — sahifani yangilash
+                lastDate = currentDate;
+                fetchData();
+            }
+            setNow(current);
+        }, 60000);
         return () => clearInterval(timer);
     }, []);
 

@@ -4,7 +4,7 @@ import { supabase } from '../services/supabaseClient';
 import { updateGroup } from '../services/groupsService';
 import {
     FiArrowLeft, FiUsers, FiGrid, FiEdit2, FiCheck, FiX,
-    FiCalendar, FiPhone, FiCheckCircle, FiXCircle, FiLoader
+    FiCalendar, FiPhone, FiCheckCircle, FiXCircle, FiLoader, FiFileText
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -170,6 +170,15 @@ const GroupDetailPage = () => {
 
                     {/* Edit / Save buttons */}
                     <div className="flex items-center gap-2 flex-shrink-0">
+                        {!editMode && (
+                            <button
+                                onClick={() => navigate(`/reports?group=${id}`)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-medium hover:border-primary hover:text-primary transition"
+                            >
+                                <FiFileText className="w-3.5 h-3.5" />
+                                Hisobot
+                            </button>
+                        )}
                         {editMode ? (
                             <>
                                 <button

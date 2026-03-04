@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { FiUsers, FiCheckSquare, FiLogOut, FiBarChart2, FiGrid, FiX, FiMessageSquare } from 'react-icons/fi';
+import { FiUsers, FiCheckSquare, FiLogOut, FiBarChart2, FiGrid, FiX, FiMessageSquare, FiCalendar, FiFileText, FiPieChart } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import ThemeToggle from './ThemeToggle';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,6 +22,9 @@ const Sidebar = ({ isOpen, onClose }) => {
 
     const navItems = [
         { to: '/', name: 'Davomat', icon: <FiCheckSquare className="w-5 h-5" />, end: true },
+        { to: '/dashboard', name: 'Dashboard', icon: <FiPieChart className="w-5 h-5" /> },
+        { to: '/calendar', name: 'Kalendar', icon: <FiCalendar className="w-5 h-5" /> },
+        { to: '/reports', name: 'Hisobot', icon: <FiFileText className="w-5 h-5" /> },
         { to: '/groups', name: 'Guruhlar', icon: <FiGrid className="w-5 h-5" /> },
         { to: '/students', name: 'Talabalar', icon: <FiUsers className="w-5 h-5" /> },
         { to: '/sms-settings', name: 'SMS Sozlamalari', icon: <FiMessageSquare className="w-5 h-5" /> },
