@@ -7,7 +7,8 @@ import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 const StudentDetailPage = () => {
     const { id } = useParams();
@@ -263,37 +264,174 @@ const StudentDetailPage = () => {
         }
     };
 
-    const generateExcel = () => {
+    const generateExcel = async () => {
         setExportModal(false);
         try {
-            const rows = [
-                [`O'quvchi:`, student?.full_name ?? ''],
-                [`Guruh:`, student?.groups?.name ?? '—'],
-                [`Telefon:`, student?.parent_phone ?? '—'],
-                [`Jami darslar:`, attendance.length],
-                [`Kelgan:`, presentCount],
-                [`Kelmagan:`, absentCount],
-                [`Davomat:`, `${attendancePercentage}%`],
-                [],
-                ['№', 'Sana', 'Holat', 'SMS holati'],
-                ...attendance.map((rec, idx) => [
-                    idx + 1,
-                    formatDate(rec.date),
-                    rec.status === 'present' ? 'Keldi' : 'Kelmadi',
-                    rec.status === 'absent'
-                        ? (rec.sms_sent ? 'SMS yuborildi' : 'SMS yuborilmadi')
-                        : '—',
-                ]),
+            const wb = new ExcelJS.Workbook();
+            wb.creator = 'Davomat Tizimi';
+            wb.created = new Date();
+
+            const ws = wb.addWorksheet("Davomat", {
+                pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true },
+            });
+
+            // ── Column widths ──
+            ws.columns = [
+                { key: 'no',     width: 6  },
+                { key: 'date',   width: 18 },
+                { key: 'status', width: 16 },
+                { key: 'sms',    width: 22 },
             ];
 
-            const ws = XLSX.utils.aoa_to_sheet(rows);
+            // ── Helper styles ──
+            const headerFill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+            const headerFont   = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+            const titleFont    = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 16 };
+            const subFont      = { name: 'Calibri', color: { argb: 'FFBAD5FF' }, size: 10 };
+            const labelFont    = { name: 'Calibri', bold: true, color: { argb: 'FF64748B' }, size: 9 };
+            const thinBorder   = { style: 'thin', color: { argb: 'FFE2E8F0' } };
+            const cellBorder   = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+            const center       = { horizontal: 'center', vertical: 'middle' };
+            const left         = { horizontal: 'left',   vertical: 'middle' };
 
-            // Column widths
-            ws['!cols'] = [{ wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 20 }];
+            // ── Row 1: App title banner ──
+            ws.mergeCells('A1:D1');
+            const titleCell = ws.getCell('A1');
+            titleCell.value = 'DAVOMAT TIZIMI  —  O\'QUVCHI HISOBOTI';
+            titleCell.fill  = headerFill;
+            titleCell.font  = { name: 'Calibri', bold: true, color: { argb: 'FFBAD5FF' }, size: 9, italic: true };
+            titleCell.alignment = center;
+            ws.getRow(1).height = 22;
 
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Davomat");
-            XLSX.writeFile(wb, `${safeName}_davomat.xlsx`);
+            // ── Row 2: Student name ──
+            ws.mergeCells('A2:D2');
+            const nameCell = ws.getCell('A2');
+            nameCell.value = student?.full_name ?? '';
+            nameCell.fill  = headerFill;
+            nameCell.font  = titleFont;
+            nameCell.alignment = { ...center, indent: 1 };
+            ws.getRow(2).height = 36;
+
+            // ── Row 3: Group + Phone ──
+            ws.mergeCells('A3:D3');
+            const infoCell = ws.getCell('A3');
+            infoCell.value = [
+                student?.groups?.name ? `Guruh: ${student.groups.name}` : null,
+                student?.parent_phone ? `Tel: ${student.parent_phone}` : null,
+            ].filter(Boolean).join('    |    ');
+            infoCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
+            infoCell.font  = subFont;
+            infoCell.alignment = { ...center };
+            ws.getRow(3).height = 22;
+
+            // ── Row 4: Spacer ──
+            ws.getRow(4).height = 8;
+
+            // ── Row 5: Stats labels ──
+            const statLabels = ['Jami darslar', 'Kelgan', 'Kelmagan', 'Davomat %'];
+            const statValues = [attendance.length, presentCount, absentCount, `${attendancePercentage}%`];
+            const statLabelColors = ['FFDBEAFE', 'FFBBF7D0', 'FFFECDD3', attendancePercentage >= 80 ? 'FFBBF7D0' : attendancePercentage >= 50 ? 'FFFEF08A' : 'FFFECDD3'];
+            const statValueColors = ['FF1D4ED8', 'FF15803D', 'FFB91C1C', attendancePercentage >= 80 ? 'FF15803D' : attendancePercentage >= 50 ? 'FFB45309' : 'FFB91C1C'];
+
+            const labelRow = ws.getRow(5);
+            const valueRow = ws.getRow(6);
+            labelRow.height = 18;
+            valueRow.height = 28;
+
+            ['A', 'B', 'C', 'D'].forEach((col, i) => {
+                const lCell = ws.getCell(`${col}5`);
+                lCell.value = statLabels[i];
+                lCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: statLabelColors[i] } };
+                lCell.font  = labelFont;
+                lCell.alignment = center;
+                lCell.border = cellBorder;
+
+                const vCell = ws.getCell(`${col}6`);
+                vCell.value = statValues[i];
+                vCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: statLabelColors[i] } };
+                vCell.font  = { name: 'Calibri', bold: true, size: 16, color: { argb: statValueColors[i] } };
+                vCell.alignment = center;
+                vCell.border = cellBorder;
+            });
+
+            // ── Row 7: Spacer ──
+            ws.getRow(7).height = 10;
+
+            // ── Row 8: Table header ──
+            const tableHeaders = ['№', 'Sana', 'Holat', 'SMS holati'];
+            const hRow = ws.getRow(8);
+            hRow.height = 22;
+            tableHeaders.forEach((h, i) => {
+                const col = ['A','B','C','D'][i];
+                const cell = ws.getCell(`${col}8`);
+                cell.value = h;
+                cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+                cell.font  = { ...headerFont, size: 10 };
+                cell.alignment = i === 0 ? center : left;
+                cell.border = cellBorder;
+            });
+
+            // ── Data rows ──
+            attendance.forEach((rec, idx) => {
+                const rowNum = 9 + idx;
+                const isPresent = rec.status === 'present';
+                const rowBg = idx % 2 === 0 ? 'FFF8FAFC' : 'FFFFFFFF';
+                const row = ws.getRow(rowNum);
+                row.height = 18;
+
+                const values = [
+                    idx + 1,
+                    formatDate(rec.date),
+                    isPresent ? 'Keldi' : 'Kelmadi',
+                    rec.status === 'absent' ? (rec.sms_sent ? 'SMS yuborildi' : 'SMS yuborilmadi') : '—',
+                ];
+                const cols = ['A','B','C','D'];
+
+                cols.forEach((col, ci) => {
+                    const cell = ws.getCell(`${col}${rowNum}`);
+                    cell.value = values[ci];
+                    cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+                    cell.alignment = ci === 0 ? center : left;
+                    cell.border = cellBorder;
+
+                    if (ci === 0) {
+                        cell.font = { name: 'Calibri', size: 9, color: { argb: 'FF94A3B8' } };
+                    } else if (ci === 1) {
+                        cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E293B' } };
+                    } else if (ci === 2) {
+                        cell.font = {
+                            name: 'Calibri', size: 10, bold: true,
+                            color: { argb: isPresent ? 'FF15803D' : 'FFB91C1C' },
+                        };
+                        cell.fill = {
+                            type: 'pattern', pattern: 'solid',
+                            fgColor: { argb: isPresent ? 'FFF0FDF4' : 'FFFFF1F2' },
+                        };
+                    } else if (ci === 3) {
+                        const isSent = rec.sms_sent && rec.status === 'absent';
+                        cell.font = {
+                            name: 'Calibri', size: 9,
+                            color: { argb: isSent ? 'FF2563EB' : 'FF94A3B8' },
+                        };
+                    }
+                });
+            });
+
+            // ── Footer row ──
+            const footerRow = 9 + attendance.length + 1;
+            ws.mergeCells(`A${footerRow}:D${footerRow}`);
+            const footerCell = ws.getCell(`A${footerRow}`);
+            footerCell.value = `Chop etilgan: ${new Date().toLocaleDateString('ru-RU')}   |   Davomat tizimi`;
+            footerCell.font  = { name: 'Calibri', size: 8, italic: true, color: { argb: 'FF94A3B8' } };
+            footerCell.alignment = { horizontal: 'right' };
+            ws.getRow(footerRow).height = 16;
+
+            // ── Generate & save ──
+            const buffer = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buffer], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
+            saveAs(blob, `${safeName}_davomat.xlsx`);
             toast.success('Excel yuklab olindi!');
         } catch (e) {
             toast.error('Excel yaratishda xatolik');
